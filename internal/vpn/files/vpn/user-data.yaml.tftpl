@@ -1,0 +1,83 @@
+#cloud-config
+ssh_pwauth: false
+users:
+  - name: ${user}
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ${public_ssh_key}
+package_update: true
+package_reboot_if_required: true
+packages:
+  - ufw
+  - openvpn
+write_files:
+  - encoding: b64
+    content: ${setup_sh}
+    path: /tmp/setup.sh
+    owner: root:root
+    permissions: '0777'
+    defer: true
+  - encoding: b64
+    content: ${update_crl_sh}
+    path: /root/update-crl.sh
+    owner: root:root
+    permissions: '0700'
+    defer: true
+  - encoding: b64
+    content: ${etc_default_ufw}
+    path: /etc/default/ufw
+    owner: root:root
+    permissions: '0644'
+    defer: true
+  - encoding: b64
+    content: ${etc_ufw_before_rules}
+    path: /etc/ufw/before.rules
+    owner: root:root
+    permissions: '0640'
+    defer: true
+  - encoding: b64
+    content: ${etc_openvpn_server_conf}
+    path: /etc/openvpn/server/server.conf
+    owner: root:root
+    permissions: '0644'
+    defer: true
+  - encoding: b64
+    content: ${ca_cert}
+    path: /etc/openvpn/server/ca.crt
+    owner: root:root
+    permissions: '0600'
+    defer: true
+  - encoding: b64
+    content: ${ca_crl}
+    path: /etc/openvpn/server/crl.pem
+    owner: root:root
+    permissions: '0600'
+    defer: true
+  - encoding: b64
+    content: ${server_key}
+    path: /etc/openvpn/server/server.key
+    owner: root:root
+    permissions: '0600'
+    defer: true
+  - encoding: b64
+    content: ${server_cert}
+    path: /etc/openvpn/server/server.crt
+    owner: root:root
+    permissions: '0600'
+    defer: true
+  - encoding: b64
+    content: ${ta_key}
+    path: /etc/openvpn/server/ta.key
+    owner: root:root
+    permissions: '0600'
+    defer: true
+  - content: |
+      */10 * * * * root CA_BUCKET='${ca_bucket}' /root/update-crl.sh
+    path: /etc/cron.d/update-crl
+    owner: root:root
+    permissions: '0644'
+    defer: true
+runcmd:
+  - sudo -u ${user} /tmp/setup.sh
+# vim: syntax=yaml

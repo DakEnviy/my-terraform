@@ -1,0 +1,158 @@
+stages:
+  - prepare
+  - validate
+  - build
+  - deploy
+
+default:
+  image: registry.dakenviy.net/devops/terraform-image:1.0.2
+
+.prepare:
+  cache:
+    key:
+      prefix: $TF_KEY
+      files:
+        - $TF_PATH/.terraform.lock.hcl
+    paths:
+      - $TF_PATH/.terraform
+  before_script:
+    - export PATH="$CI_PROJECT_DIR/bin:$PATH"
+    - source $CI_PROJECT_DIR/bin/ci-utils.sh
+    - cd $TF_PATH
+    - yc config profile create $YC_PROFILE
+    - echo $SA_KEY > $YC_PROFILE-sa-key.json
+    - yc config set service-account-key $YC_PROFILE-sa-key.json
+    - rm $YC_PROFILE-sa-key.json
+
+.prepare-root:
+  extends: .prepare
+  variables:
+    TF_KEY: root
+    TF_PATH: $CI_PROJECT_DIR/root
+    YC_PROFILE: root-deployer
+    SA_KEY: $ROOT_DEPLOYER_SA_KEY
+
+.prepare-internal:
+  extends: .prepare
+  variables:
+    YC_PROFILE: internal-deployer
+    SA_KEY: $INTERNAL_DEPLOYER_SA_KEY
+
+.prepare-internal-bootstrap:
+  extends: .prepare-internal
+  variables:
+    TF_KEY: internal-bootstrap
+    TF_PATH: $CI_PROJECT_DIR/internal/bootstrap
+
+.prepare-internal-vpn:
+  extends: .prepare-internal
+  variables:
+    TF_KEY: internal-vpn
+    TF_PATH: $CI_PROJECT_DIR/internal/vpn
+
+.prepare-internal-cluster:
+  extends: .prepare-internal
+  variables:
+    TF_KEY: internal-cluster
+    TF_PATH: $CI_PROJECT_DIR/internal/cluster
+
+.init:
+  stage: prepare
+  script:
+    - init.sh
+
+.validate:
+  stage: validate
+  script:
+    - terraform fmt -check -diff
+    - terraform validate
+
+.plan:
+  stage: build
+  variables:
+    TF_PLAN: $TF_PATH/$TF_KEY.tfplan
+    TF_PLAN_JSON: $TF_PATH/$TF_KEY.tfplan.json
+  script:
+    - wrapper.sh plan -out=$TF_PLAN
+    - terraform show -json $TF_PLAN | convert_report > $TF_PLAN_JSON
+  artifacts:
+    name: plan
+    paths:
+      - $TF_PLAN
+    reports:
+      terraform: $TF_PLAN_JSON
+
+.apply:
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+  script:
+    - wrapper.sh apply -auto-approve
+
+init-root:
+  extends: [".prepare-root", ".init"]
+
+init-internal-bootstrap:
+  extends: [".prepare-internal-bootstrap", ".init"]
+
+init-internal-vpn:
+  extends: [".prepare-internal-vpn", ".init"]
+
+init-internal-cluster:
+  extends: [".prepare-internal-cluster", ".init"]
+
+validate-modules:
+  stage: validate
+  script:
+    - cd $CI_PROJECT_DIR/modules
+    - terraform fmt -recursive -check -diff
+
+validate-root:
+  needs: ["init-root"]
+  extends: [".prepare-root", ".validate"]
+
+validate-internal-bootstrap:
+  needs: ["init-internal-bootstrap"]
+  extends: [".prepare-internal-bootstrap", ".validate"]
+
+validate-internal-vpn:
+  needs: ["init-internal-vpn"]
+  extends: [".prepare-internal-vpn", ".validate"]
+
+validate-internal-cluster:
+  needs: ["init-internal-cluster"]
+  extends: [".prepare-internal-cluster", ".validate"]
+
+plan-root:
+  needs: ["validate-root"]
+  extends: [".prepare-root", ".plan"]
+
+plan-internal-bootstrap:
+  needs: ["validate-internal-bootstrap"]
+  extends: [".prepare-internal-bootstrap", ".plan"]
+
+plan-internal-vpn:
+  needs: ["validate-internal-vpn"]
+  extends: [".prepare-internal-vpn", ".plan"]
+
+plan-internal-cluster:
+  needs: ["validate-internal-cluster"]
+  extends: [".prepare-internal-cluster", ".plan"]
+
+apply-root:
+  needs: ["plan-root"]
+  extends: [".prepare-root", ".apply"]
+
+apply-internal-bootstrap:
+  needs: ["plan-internal-bootstrap"]
+  extends: [".prepare-internal-bootstrap", ".apply"]
+
+apply-internal-vpn:
+  needs: ["plan-internal-vpn"]
+  extends: [".prepare-internal-vpn", ".apply"]
+
+apply-internal-cluster:
+  needs: ["plan-internal-cluster"]
+  extends: [".prepare-internal-cluster", ".apply"]
+

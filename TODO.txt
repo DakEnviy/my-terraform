@@ -1,0 +1,24 @@
+TODO:
+
+- Configure CI/CD for node-ca-injector helm chart
+- Add node-ca-injector to terraform configs
+- Move gitlab-configuration to terraform
+- Create registry credentials automatically
+- Add versioning for gitlab-ci
+- Move out variables from bash scripts
+- Think about adding -E flag to all bash scripts
+- Review all terraform configs and try to move values to variables as much as
+  you can
+- Write documentation about deploying infrastracture
+- Configure gitlab badges for current projects
+- Check environment configuration in gitlab-ci
+- Configure CI/CD for deploying hello world application
+- Configure SSO for Yandex Cloud and Gitlab
+- Think about backups
+- Make external postgres, redis and gitaly for gitlab
+- Create complex microservices application and configure CI/CD for it
+- Add task manager and integrate it with gitlab
+- Configure review rules for gitlab ce
+- Try to generate addresses inside internal network automatically
+- Try to pack vpn to VM image
+
